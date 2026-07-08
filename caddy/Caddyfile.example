@@ -1,0 +1,12 @@
+matrix.hanzpo.com {
+	# MCP server, gated behind an unguessable path prefix (Caddy strips it),
+	# with real auth (bearer token) enforced inside the app.
+	handle_path /CHANGEME_SECRET_PATH/* {
+		reverse_proxy mcp-matrix:8000
+	}
+
+	# Everything else is the Matrix homeserver.
+	handle {
+		reverse_proxy tuwunel:8008
+	}
+}

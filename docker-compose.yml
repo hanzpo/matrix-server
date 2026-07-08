@@ -1,0 +1,73 @@
+services:
+  tuwunel:
+    image: ghcr.io/matrix-construct/tuwunel:latest
+    restart: unless-stopped
+    environment:
+      TUWUNEL_CONFIG: /etc/tuwunel/tuwunel.toml
+    volumes:
+      - ./tuwunel/data:/var/lib/tuwunel
+      - ./tuwunel/tuwunel.toml:/etc/tuwunel/tuwunel.toml:ro
+    ports:
+      - "127.0.0.1:8008:8008" # local testing only
+    networks: [matrix, internal]
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/data:/data
+      - ./caddy/config:/config
+    networks: [matrix, internal]
+  mautrix-discord:
+    image: dock.mau.dev/mautrix/discord:latest
+    restart: unless-stopped
+    volumes:
+      - ./bridges/discord:/data
+    networks:
+      - matrix
+    depends_on:
+      - tuwunel
+  mautrix-signal:
+    image: dock.mau.dev/mautrix/signal:latest
+    restart: unless-stopped
+    volumes:
+      - ./bridges/signal:/data
+    networks:
+      - matrix
+    depends_on:
+      - tuwunel
+  mautrix-linkedin:
+    image: dock.mau.dev/mautrix/linkedin:latest
+    restart: unless-stopped
+    volumes:
+      - ./bridges/linkedin:/data
+    networks:
+      - matrix
+    depends_on:
+      - tuwunel
+  mcp-matrix:
+    build: ./mcp
+    image: mcp-matrix:local
+    restart: unless-stopped
+    env_file: ./mcp/.env
+    networks:
+      - internal
+    depends_on:
+      - tuwunel
+    expose:
+      - "8000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 256m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+networks:
+  matrix:
+  internal:
+    internal: true

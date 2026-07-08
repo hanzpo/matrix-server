@@ -1,0 +1,13 @@
+[global]
+server_name = "hanzpo.com"
+database_path = "/var/lib/tuwunel"
+address = ["0.0.0.0"]
+port = 8008
+allow_registration = false
+allow_federation = false
+trusted_servers = ["matrix.org"]
+appservice_dir = "/var/lib/tuwunel/appservices"
+allow_public_room_directory_over_federation = false
+
+[global.well_known]
+client = "https://matrix.hanzpo.com"

@@ -1,0 +1,17 @@
+# Real secrets / config — ONLY the .example templates are tracked
+mcp/.env
+caddy/Caddyfile
+bridges/**/config.yaml
+bridges/**/registration.yaml
+
+# Runtime state / data — never commit
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/logs/
+tuwunel/data/
+caddy/data/
+caddy/config/
+
+# misc
+.DS_Store

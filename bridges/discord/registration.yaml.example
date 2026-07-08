@@ -1,0 +1,15 @@
+id: discord
+url: http://mautrix-discord:29334
+as_token: "CHANGEME_AS_TOKEN"
+hs_token: "CHANGEME_HS_TOKEN"
+sender_localpart: "CHANGEME_SENDER_LOCALPART"
+rate_limited: false
+namespaces:
+    users:
+        - regex: ^@discordbot:hanzpo\.com$
+          exclusive: true
+        - regex: ^@discord_.*:hanzpo\.com$
+          exclusive: true
+de.sorunome.msc2409.push_ephemeral: true
+push_ephemeral: true
+io.element.msc4190: true
