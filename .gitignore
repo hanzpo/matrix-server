@@ -15,3 +15,14 @@ caddy/config/
 
 # misc
 .DS_Store
+
+# backfill runtime state
+backfill/__pycache__/
+backfill/*.log
+backfill/*.jsonl
+backfill/progress.json
+backfill/state.json
+
+# editor/backup litter
+*.bak
+*.bak2

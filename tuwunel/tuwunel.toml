@@ -1,5 +1,6 @@
 [global]
 server_name = "hanzpo.com"
+new_user_displayname_suffix = ""
 database_path = "/var/lib/tuwunel"
 address = ["0.0.0.0"]
 port = 8008
