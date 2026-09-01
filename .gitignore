@@ -26,3 +26,5 @@ backfill/state.json
 # editor/backup litter
 *.bak
 *.bak2
+__pycache__/
+*.pyc
