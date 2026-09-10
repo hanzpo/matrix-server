@@ -29,6 +29,14 @@ function doPost(e) {
     if (sh.getLastRow() === 0) {
       sh.appendRow(HEADER.concat(['applied', 'notes']));
       sh.setFrozenRows(1);
+      var appliedCol = HEADER.length + 1; // column K
+      var rule = SpreadsheetApp.newDataValidation()
+        .requireValueInList(
+          ['Not applied', 'Applied', 'OA', 'Interview', 'Offer', 'Rejected'],
+          true)
+        .setAllowInvalid(true)
+        .build();
+      sh.getRange(2, appliedCol, sh.getMaxRows() - 1, 1).setDataValidation(rule);
     }
     var rows = JSON.parse(e.postData.contents).rows || [];
     var last = sh.getLastRow();
@@ -42,16 +50,17 @@ function doPost(e) {
       var vals = HEADER.map(function (h) { return r[h] || ''; });
       var at = index[r.key];
       if (at) {
+        // Update the bot's columns only; K+ ("applied", "notes") are yours.
         sh.getRange(at, 1, 1, HEADER.length).setValues([vals]);
         updated++;
       } else {
-        toAppend.push(vals);
+        toAppend.push(vals.concat(['Not applied']));
         index[r.key] = last + toAppend.length; // handle dup keys in one batch
         appended++;
       }
     });
     if (toAppend.length) {
-      sh.getRange(last + 1, 1, toAppend.length, HEADER.length)
+      sh.getRange(last + 1, 1, toAppend.length, HEADER.length + 1)
         .setValues(toAppend);
     }
     return json_({ ok: true, appended: appended, updated: updated });

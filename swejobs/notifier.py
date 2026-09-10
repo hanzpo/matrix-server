@@ -30,6 +30,8 @@ STATE_PATH = BASE / "state.json"
 COMPANIES_PATH = Path(__file__).resolve().parent / "companies.json"
 MAX_ITEMS_PER_MSG = 40
 SHEET_BATCH = 200
+RENOTIFY_DAYS = 14   # a listing that flaps off/on within this window is silent
+DIGEST_ET_HOUR = 20  # last run of the cron window flushes the daily digest
 
 DRY = "--dry-run" in sys.argv
 
@@ -182,10 +184,19 @@ def load_state():
 
 # ------------------------------------------------------------------- diffing
 
+def _days_since(datestr):
+    try:
+        return (time.time() - time.mktime(time.strptime(datestr, "%Y-%m-%d"))) / 86400
+    except (ValueError, OverflowError):
+        return 10 ** 6
+
+
 def apply_run(state, current, fetched_ok, new_sources, postings):
-    """Merge this run's observations into state. Returns (added, removed,
-    seeded): added/removed are job dicts to notify about; seeded counts jobs
-    introduced silently because every source listing them is new this run."""
+    """Merge this run's observations into state. Returns (added_keys,
+    removed_keys, seeded): keys of jobs to notify about; seeded counts jobs
+    introduced silently because every source listing them is new this run.
+    A job that reappears within RENOTIFY_DAYS of removal (same URL or same
+    company+title) is reactivated silently — flapping, not news."""
     jobs = state["jobs"]
     now = time.strftime("%Y-%m-%d")
     listed_by = {}  # key -> [source names listing it now]
@@ -193,11 +204,17 @@ def apply_run(state, current, fetched_ok, new_sources, postings):
         for k in keys:
             listed_by.setdefault(k, []).append(src)
 
-    ident_of_active = {}
+    ident_index = {}  # identity -> key, for active and recently removed jobs
     for k, j in jobs.items():
-        if j["status"] == "active":
-            ident_of_active.setdefault(
+        if j["status"] == "active" or _days_since(j["removed_at"]) <= RENOTIFY_DAYS:
+            ident_index.setdefault(
                 identity_key({"company": j["company"], "title": j["title"]}), k)
+
+    def reactivate(k, j):
+        fresh_news = _days_since(j["removed_at"]) > RENOTIFY_DAYS
+        j["status"], j["removed_at"] = "active", ""
+        state["sheet_queue"].append(k)
+        return fresh_news
 
     added, seeded = [], 0
     for k, srcs in listed_by.items():
@@ -209,30 +226,30 @@ def apply_run(state, current, fetched_ok, new_sources, postings):
                 for field in ("location", "salary"):
                     if p.get(field) and not j.get(field):
                         j[field] = p[field]
-            if j["status"] == "removed":  # reposted
-                j["status"], j["removed_at"] = "active", ""
-                added.append(j)
-                state["sheet_queue"].append(k)
+            if j["status"] == "removed" and reactivate(k, j):
+                added.append(k)
             continue
         if p is None:
             continue  # key known only from a 304 cache; already in jobs or noise
         ik = identity_key(p)
-        alias = ident_of_active.get(ik)
+        alias = ident_index.get(ik)
         if alias:  # same company+title under a different URL: merge, don't renotify
             j = jobs[alias]
             j["sources"] = sorted(set(j["sources"]) | set(srcs))
+            if j["status"] == "removed":
+                reactivate(alias, j)  # recently removed: silent by definition
             continue
         j = {"company": p["company"], "title": p["title"],
              "location": p["location"], "salary": p["salary"], "url": p["url"],
              "sources": sorted(set(srcs)), "status": "active",
              "first_seen": now, "removed_at": ""}
         jobs[k] = j
-        ident_of_active[ik] = k
+        ident_index[ik] = k
         state["sheet_queue"].append(k)
         if set(srcs) <= new_sources:
             seeded += 1  # first sync of a new source: record, don't notify
         else:
-            added.append(j)
+            added.append(k)
 
     removed = []
     for k, j in jobs.items():
@@ -241,7 +258,7 @@ def apply_run(state, current, fetched_ok, new_sources, postings):
         # Only declare it gone if every source that carried it reported in.
         if all(s in fetched_ok for s in j["sources"]):
             j["status"], j["removed_at"] = "removed", now
-            removed.append(j)
+            removed.append(k)
             state["sheet_queue"].append(k)
     state["sheet_queue"] = sorted(set(state["sheet_queue"]))
     return added, removed, seeded
@@ -285,31 +302,43 @@ def fmt_item_text(j):
     return "• " + " — ".join(parts) + f" — {j['url']}"
 
 
-def notify(added, removed):
-    tier1 = [j for j in added if is_tier1(j["company"])]
-    rest = [j for j in added if not is_tier1(j["company"])]
-    chunks = []  # each: (header_text, header_html, jobs)
-    for label, group in (("Shopify level & above", tier1), ("Below", rest)):
-        for i in range(0, len(group), MAX_ITEMS_PER_MSG):
-            chunks.append((label, group[i:i + MAX_ITEMS_PER_MSG]))
-
-    total = len(added)
-    for label, group in chunks:
-        text = [f"{total} new posting(s) — {label} ({len(group)} here):"]
-        htm = [f"<b>{total} new posting(s)</b> — <b>{html.escape(label)}</b><ul>"]
+def _send_job_list(header, jobs_list):
+    for i in range(0, len(jobs_list), MAX_ITEMS_PER_MSG):
+        group = jobs_list[i:i + MAX_ITEMS_PER_MSG]
+        text = [f"{header}:"]
+        htm = [f"<b>{html.escape(header)}</b><ul>"]
         for j in group:
             text.append(fmt_item_text(j))
             htm.append(f"<li>{fmt_item(j)}</li>")
         htm.append("</ul>")
         send_matrix("\n".join(text), "".join(htm))
 
-    if removed:
-        names = ", ".join(f"{j['company']} ({j['title']})" for j in removed[:15])
-        extra = f" and {len(removed) - 15} more" if len(removed) > 15 else ""
-        send_matrix(
-            f"{len(removed)} listing(s) removed: {names}{extra}",
-            f"<i>{len(removed)} listing(s) removed: {html.escape(names)}{extra}</i>",
-        )
+
+def notify_tier1(jobs_list):
+    """Instant alert, top-tier companies only. Everything else waits for
+    the daily digest; removals are never announced (the sheet records them)."""
+    if jobs_list:
+        _send_job_list(f"{len(jobs_list)} new top-tier posting(s)", jobs_list)
+
+
+def flush_digest(state):
+    """Once a day (the DIGEST_ET_HOUR run), summarize the below-tier adds
+    and the count of closed listings, then clear the queue."""
+    from zoneinfo import ZoneInfo
+    from datetime import datetime
+    if datetime.now(ZoneInfo("America/New_York")).hour < DIGEST_ET_HOUR:
+        return
+    jobs = state["jobs"]
+    items = [jobs[k] for k in dict.fromkeys(state.get("digest_queue", []))
+             if k in jobs and jobs[k]["status"] == "active"]
+    closed = state.get("digest_removed", 0)
+    if items or closed:
+        closed_note = f" · {closed} listing(s) closed" if closed else ""
+        _send_job_list(
+            f"Daily digest — {len(items)} new posting(s) below tier 1{closed_note}",
+            items)
+        log(f"digest flushed: {len(items)} below-tier, {closed} closed")
+    state["digest_queue"], state["digest_removed"] = [], 0
 
 
 # ----------------------------------------------------------------- sheet sync
@@ -368,9 +397,17 @@ def main():
             "existing listings added quietly. New ones will be announced "
             "from here on.",
         )
+    jobs = state["jobs"]
+    tier1_now = [jobs[k] for k in added if is_tier1(jobs[k]["company"])]
+    state.setdefault("digest_queue", [])
+    state["digest_queue"] += [k for k in added
+                              if not is_tier1(jobs[k]["company"])]
+    state["digest_removed"] = state.get("digest_removed", 0) + len(removed)
     if added or removed:
-        log(f"+{len(added)} -{len(removed)} (sources ok: {len(fetched_ok)})")
-        notify(added, removed)
+        log(f"+{len(added)} ({len(tier1_now)} tier1) -{len(removed)} "
+            f"(sources ok: {len(fetched_ok)})")
+        notify_tier1(tier1_now)
+    flush_digest(state)
 
     try:
         sync_sheet(state)

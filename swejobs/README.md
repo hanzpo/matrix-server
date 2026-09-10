@@ -2,8 +2,14 @@
 
 Notifies a Matrix room about new SWE/quant internship postings and mirrors
 everything to a Google Sheet. Runs hourly via cron (12:00–20:00 ET, see
-`crontab`), deduped across all sources, grouped into "Shopify level & above"
-vs "Below" (see `tiers.py`).
+`crontab`), deduped across all sources.
+
+Noise policy: top-tier companies (`tiers.py`) alert instantly; everything
+below rolls into one daily digest on the 20:00 ET run; removals are never
+announced (the sheet records them, the digest counts them); a listing that
+disappears and reappears within 14 days is treated as flapping and stays
+silent. Direct board polls keep only software/quant/data titles
+(`ROLE_RE` in `sources.py`).
 
 ## Sources
 

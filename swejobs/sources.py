@@ -39,6 +39,20 @@ INTERN_TITLE_RE = re.compile(
     r"\b(intern(ship)?s?|co-?op|new\s+grad(uate)?|university\s+grad|campus\s+hire)\b",
     re.IGNORECASE,
 )
+# Company boards list every discipline (legal, marketing, mechanical...).
+# Keep only software/quant/data roles there; the community lists are already
+# curated, so this allowlist applies to ats:* sources only.
+ROLE_RE = re.compile(r"""
+    software | \bswe\b | quant | trad(?:ing|er) | developer |
+    machine\s+learning | \bml\b | \bai\b | artificial\s+intelligence |
+    data\s+(?:science|scientist|engineer|analytics) |
+    research\s+(?:engineer|scientist|analyst) |
+    back.?end | front.?end | full.?stack | site\s+reliability | \bsre\b |
+    infrastructure | platform\s+eng | security\s+eng | compiler | kernel |
+    embedded | firmware | computer\s+(?:science|vision) | \bnlp\b |
+    cryptograph | devops | cloud\s+eng | mobile\s+(?:eng|dev) | \bios\b |
+    android | web\s+dev | game(?:play)?\s+(?:eng|program)
+""", re.IGNORECASE | re.VERBOSE)
 YEAR_RE = re.compile(r"\b(20\d\d)\b")
 
 
@@ -195,7 +209,7 @@ def parse_nuft(markdown):
 
 
 def _title_wanted(title):
-    if not INTERN_TITLE_RE.search(title):
+    if not INTERN_TITLE_RE.search(title) or not ROLE_RE.search(title):
         return False
     years = [int(y) for y in YEAR_RE.findall(title)]
     return not years or max(years) >= 2027
