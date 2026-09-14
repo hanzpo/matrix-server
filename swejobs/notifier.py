@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """Notify a Matrix room about new SWE/quant internship postings, deduped
-across sources, grouped by company tier, and mirrored to a Google Sheet.
+across sources and grouped by company tier.
 
 Sources: speedyapply lists, Simplify listings.json, vanshb03 list, the NUFT
 quant list, and direct polling of ~70 company job boards (companies.json).
 
-Config/state in ~/swejobs/: bot_token, room_id, state.json, notifier.log,
-sheet_webhook (optional Apps Script URL; sheet sync is skipped until present).
+Config/state in ~/swejobs/: bot_token, room_id, state.json, notifier.log.
 
 Usage: notifier.py [--dry-run]   (dry-run: fetch + diff, no sends, no state write)
 """
@@ -29,7 +28,6 @@ BASE = Path(os.environ.get("SWEJOBS_HOME", Path.home() / "swejobs"))
 STATE_PATH = BASE / "state.json"
 COMPANIES_PATH = Path(__file__).resolve().parent / "companies.json"
 MAX_ITEMS_PER_MSG = 40
-SHEET_BATCH = 200
 RENOTIFY_DAYS = 14   # a listing that flaps off/on within this window is silent
 DIGEST_ET_HOUR = 20  # last run of the cron window flushes the daily digest
 
@@ -160,8 +158,7 @@ def collect_sources(state):
 
 def load_state():
     if not STATE_PATH.exists():
-        return {"version": 2, "jobs": {}, "etags": {}, "source_keys": {},
-                "sheet_queue": []}
+        return {"version": 2, "jobs": {}, "etags": {}, "source_keys": {}}
     state = json.loads(STATE_PATH.read_text())
     if "version" not in state:  # v1: {file_path: {url: row}}
         jobs = {}
@@ -176,9 +173,9 @@ def load_state():
                     "url": url, "sources": [src], "status": "active",
                     "first_seen": now, "removed_at": "",
                 })
-        state = {"version": 2, "jobs": jobs, "etags": {}, "source_keys": {},
-                 "sheet_queue": sorted(jobs)}  # backfill everything to the sheet
+        state = {"version": 2, "jobs": jobs, "etags": {}, "source_keys": {}}
         log(f"migrated v1 state: {len(jobs)} jobs")
+    state.pop("sheet_queue", None)  # sheet sync removed
     return state
 
 
@@ -213,7 +210,6 @@ def apply_run(state, current, fetched_ok, new_sources, postings):
     def reactivate(k, j):
         fresh_news = _days_since(j["removed_at"]) > RENOTIFY_DAYS
         j["status"], j["removed_at"] = "active", ""
-        state["sheet_queue"].append(k)
         return fresh_news
 
     added, seeded = [], 0
@@ -245,7 +241,6 @@ def apply_run(state, current, fetched_ok, new_sources, postings):
              "first_seen": now, "removed_at": ""}
         jobs[k] = j
         ident_index[ik] = k
-        state["sheet_queue"].append(k)
         if set(srcs) <= new_sources:
             seeded += 1  # first sync of a new source: record, don't notify
         else:
@@ -259,8 +254,6 @@ def apply_run(state, current, fetched_ok, new_sources, postings):
         if all(s in fetched_ok for s in j["sources"]):
             j["status"], j["removed_at"] = "removed", now
             removed.append(k)
-            state["sheet_queue"].append(k)
-    state["sheet_queue"] = sorted(set(state["sheet_queue"]))
     return added, removed, seeded
 
 
@@ -316,7 +309,7 @@ def _send_job_list(header, jobs_list):
 
 def notify_tier1(jobs_list):
     """Instant alert, top-tier companies only. Everything else waits for
-    the daily digest; removals are never announced (the sheet records them)."""
+    the daily digest; removals are never announced (the digest counts them)."""
     if jobs_list:
         _send_job_list(f"{len(jobs_list)} new top-tier posting(s)", jobs_list)
 
@@ -339,41 +332,6 @@ def flush_digest(state):
             items)
         log(f"digest flushed: {len(items)} below-tier, {closed} closed")
     state["digest_queue"], state["digest_removed"] = [], 0
-
-
-# ----------------------------------------------------------------- sheet sync
-
-def sync_sheet(state):
-    hook_path = BASE / "sheet_webhook"
-    queue = state.get("sheet_queue", [])
-    if not queue:
-        return
-    if not hook_path.exists():
-        return  # queue keeps accumulating until the webhook is configured
-    hook = hook_path.read_text().strip()
-    jobs = state["jobs"]
-    sent = 0
-    while sent < len(queue):
-        batch = queue[sent:sent + SHEET_BATCH]
-        rows = []
-        for k in batch:
-            j = jobs.get(k)
-            if j:
-                rows.append({"key": k, "first_seen": j["first_seen"],
-                             "company": j["company"], "position": j["title"],
-                             "location": j["location"], "salary": j["salary"],
-                             "sources": ", ".join(j["sources"]), "url": j["url"],
-                             "status": j["status"], "removed_at": j["removed_at"]})
-        req = urllib.request.Request(
-            hook, data=json.dumps({"rows": rows}).encode(),
-            headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            out = json.load(resp)
-            if not out.get("ok"):
-                raise RuntimeError(f"sheet webhook: {out}")
-        sent += len(batch)
-    state["sheet_queue"] = queue[sent:]
-    log(f"sheet: upserted {sent} row(s)")
 
 
 # ---------------------------------------------------------------------- main
@@ -409,19 +367,13 @@ def main():
         notify_tier1(tier1_now)
     flush_digest(state)
 
-    try:
-        sync_sheet(state)
-    except Exception as e:
-        log(f"sheet sync failed (will retry next run): {e}")
-
     if not DRY:
         tmp = STATE_PATH.with_suffix(".json.tmp")
         tmp.write_text(json.dumps(state))
         tmp.replace(STATE_PATH)
     else:
         print(f"[dry-run] +{len(added)} -{len(removed)}, "
-              f"{len(state['jobs'])} jobs tracked, "
-              f"{len(state['sheet_queue'])} queued for sheet")
+              f"{len(state['jobs'])} jobs tracked")
     return 0
 
 

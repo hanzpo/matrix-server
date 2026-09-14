@@ -1,12 +1,11 @@
 # swejobs
 
-Notifies a Matrix room about new SWE/quant internship postings and mirrors
-everything to a Google Sheet. Runs hourly via cron (12:00–20:00 ET, see
-`crontab`), deduped across all sources.
+Notifies a Matrix room about new SWE/quant internship postings. Runs hourly
+via cron (12:00–20:00 ET, see `crontab`), deduped across all sources.
 
 Noise policy: top-tier companies (`tiers.py`) alert instantly; everything
 below rolls into one daily digest on the 20:00 ET run; removals are never
-announced (the sheet records them, the digest counts them); a listing that
+announced (the digest only counts them); a listing that
 disappears and reappears within 14 days is treated as flapping and stays
 silent. Direct board polls keep only software/quant/data titles
 (`ROLE_RE` in `sources.py`).
@@ -37,10 +36,8 @@ fallback match on normalized company+title. A job seen by 4 sources = 1 row,
 ## Files on the box (`~/swejobs/`, not in git)
 
 `bot_token`, `room_id` — Matrix creds. `state.json` — v2 state: all jobs ever
-seen, per-source key cache, ETags, sheet queue (auto-migrates v1).
-`sheet_webhook` — optional: Apps Script URL (see `sheets.gs` header for the
-3-minute setup). Until it exists, sheet rows queue up in state and flush on
-the first run after setup. `notifier.log` — one line per eventful run.
+seen, per-source key cache, ETags (auto-migrates v1). `notifier.log` — one
+line per eventful run.
 
 ## Costs / performance
 
