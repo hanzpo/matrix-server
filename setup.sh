@@ -42,6 +42,6 @@ cat <<'NOTE'
   5. Bridges  : start each mautrix-* container; it generates its own config.yaml +
                 registration.yaml. Mirror the settings shown in bridges/*/*.example,
                 put the registration in tuwunel's appservice dir, then log in
-                (Signal = QR device-link, Discord/LinkedIn = token/cookies).
+                (Signal = QR device-link, Discord = token).
 
 NOTE

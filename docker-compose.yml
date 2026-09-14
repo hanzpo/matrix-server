@@ -39,15 +39,6 @@ services:
       - matrix
     depends_on:
       - tuwunel
-  mautrix-linkedin:
-    image: dock.mau.dev/mautrix/linkedin:latest
-    restart: unless-stopped
-    volumes:
-      - ./bridges/linkedin:/data
-    networks:
-      - matrix
-    depends_on:
-      - tuwunel
   mcp-matrix:
     build: ./mcp
     image: mcp-matrix:local
@@ -67,6 +58,19 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+  grindstone:
+    image: grindstone:latest
+    restart: unless-stopped
+    mem_limit: 600m
+    environment:
+      GRINDSTONE_CLOUD: "1"
+      GRINDSTONE_DB: /data/grindstone.db
+      NEETCODE_PATH: /app/neetcode
+    env_file:
+      - /opt/grindstone/env
+    volumes:
+      - /opt/grindstone/data:/data
+    networks: [matrix]
 networks:
   matrix:
   internal:

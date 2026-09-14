@@ -10,3 +10,11 @@ matrix.hanzpo.com {
 		reverse_proxy tuwunel:8008
 	}
 }
+
+# Grindstone (interview prep). Generate the hash with: caddy hash-password
+study.hanzpo.com {
+	basic_auth {
+		hanz CHANGEME_BCRYPT_HASH
+	}
+	reverse_proxy grindstone:8321
+}
