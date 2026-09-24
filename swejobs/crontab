@@ -1,1 +1,0 @@
-0 * * * * H=$(TZ=America/New_York date +\%H); [ $H -ge 12 ] && [ $H -le 20 ] && flock -n /home/ubuntu/swejobs/.lock /usr/bin/python3 /opt/matrix/swejobs/notifier.py >> /home/ubuntu/swejobs/cron.log 2>&1

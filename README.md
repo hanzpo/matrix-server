@@ -30,7 +30,6 @@ tuwunel/tuwunel.toml
 caddy/Caddyfile.example          # secret path + basic_auth placeholders
 mcp/                             # the MCP server (server.py, Dockerfile, mint-token.sh, .env.example)
 bridges/<name>/*.example         # redacted bridge config + registration templates
-swejobs/                         # hourly internship-posting notifier (cron)
 setup.sh
 ```
 
