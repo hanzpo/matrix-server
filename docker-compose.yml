@@ -39,6 +39,15 @@ services:
       - matrix
     depends_on:
       - tuwunel
+  mautrix-linkedin:
+    image: dock.mau.dev/mautrix/linkedin:latest
+    restart: unless-stopped
+    volumes:
+      - ./bridges/linkedin:/data
+    networks:
+      - matrix
+    depends_on:
+      - tuwunel
   mcp-matrix:
     build: ./mcp
     image: mcp-matrix:local

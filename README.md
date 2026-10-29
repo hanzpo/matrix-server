@@ -2,7 +2,7 @@
 
 Self-hosted [tuwunel](https://github.com/matrix-construct/tuwunel) Matrix homeserver as a
 personal Beeper alternative — single user, federation disabled, purpose is chat **bridges**
-(Signal / Discord) plus a hardened **MCP server** that lets an AI bot (Poke)
+(Signal / Discord / LinkedIn) plus a hardened **MCP server** that lets an AI bot (Poke)
 read and send messages across all rooms.
 
 Deployed as a Docker Compose stack, intended to live at `/opt/matrix` on the server.
@@ -18,7 +18,7 @@ Deployed as a Docker Compose stack, intended to live at `/opt/matrix` on the ser
 |---|---|
 | `tuwunel` | Matrix homeserver (Rust) |
 | `caddy` | TLS reverse proxy (auto Let's Encrypt); also routes the MCP secret path |
-| `mautrix-signal` / `-discord` | Chat bridges |
+| `mautrix-signal` / `-discord` / `-linkedin` | Chat bridges |
 | `mcp-matrix` | Custom MCP server exposing Matrix read/send to a remote AI bot |
 
 ## Layout
@@ -41,7 +41,7 @@ git clone <this repo> /opt/matrix && cd /opt/matrix
 
 Then follow the manual steps `setup.sh` prints (DNS, create your user, mint the MCP
 token, start the bridges and log in). Bridges are interactive by nature (Signal QR link,
-Discord token) so they can't be fully scripted.
+Discord token, LinkedIn cookies) so they can't be fully scripted.
 
 ## The MCP server (`mcp/`)
 
