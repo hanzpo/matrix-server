@@ -19,7 +19,6 @@ Deployed as a Docker Compose stack, intended to live at `/opt/matrix` on the ser
 | `tuwunel` | Matrix homeserver (Rust) |
 | `caddy` | TLS reverse proxy (auto Let's Encrypt); also routes the MCP secret path |
 | `mautrix-signal` / `-discord` | Chat bridges |
-| `grindstone` | Interview-prep app ([hanzpo/grindstone](https://github.com/hanzpo/grindstone)), served at `study.hanzpo.com` behind Caddy basic auth |
 | `mcp-matrix` | Custom MCP server exposing Matrix read/send to a remote AI bot |
 
 ## Layout
@@ -32,14 +31,6 @@ mcp/                             # the MCP server (server.py, Dockerfile, mint-t
 bridges/<name>/*.example         # redacted bridge config + registration templates
 setup.sh
 ```
-
-## Grindstone
-
-The `grindstone` service runs the image built by the
-[grindstone](https://github.com/hanzpo/grindstone) repo's `deploy/` scripts.
-On the box it expects `/opt/grindstone/env` (holds `ANTHROPIC_API_KEY`) and
-persists its SQLite DB in `/opt/grindstone/data`. Build + load the image on the
-server, then `docker compose up -d grindstone`.
 
 ## Quick start
 
